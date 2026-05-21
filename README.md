@@ -36,7 +36,7 @@
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-username/brew-export.git
+git clone https://github.com/zackwag/brew-export.git
 cd brew-export
 
 # Make executable
