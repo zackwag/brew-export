@@ -27,7 +27,7 @@
 
 **Optional but recommended:**
 
-- [`mas`](https://github.com/mas-cli/mas) — required to capture Mac App Store apps (`brew install mas`)
+- [`mas`](https://github.com/mas-cli/mas) — required to capture Mac App Store apps; installed automatically if App Store apps are detected (`brew install mas`)
 - [`fzf`](https://github.com/junegunn/fzf) — enables interactive dotfile selection (`brew install fzf`)
 
 ---
@@ -109,11 +109,7 @@ Choosing **backup** saves the existing file as `.zshrc.bak.YYYYMMDDHHMMSS` befor
 
 ## Mac App Store apps
 
-Install `mas` before running `brew_export.sh` to ensure App Store apps are captured:
-
-```bash
-brew install mas
-```
+If your Brewfile contains App Store apps, `brew_export.sh` will automatically install [`mas`](https://github.com/mas-cli/mas) via Homebrew if it isn't already present — no manual setup required.
 
 If the target machine isn't signed into the App Store when the install script runs, it will install all non-MAS packages first, then exit with clear instructions to sign in and re-run.
 

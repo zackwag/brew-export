@@ -27,7 +27,7 @@ trap cleanup EXIT
 
 echo ""
 echo -e "${BOLD}${BLUE}╔══════════════════════════════════════╗${RESET}"
-echo -e "${BOLD}${BLUE}║       🍺  Brew Exporter  🍺           ║${RESET}"
+echo -e "${BOLD}${BLUE}║        🍺  Brew Exporter  🍺         ║${RESET}"
 echo -e "${BOLD}${BLUE}╚══════════════════════════════════════╝${RESET}"
 echo ""
 echo -e "${CYAN}📂 Output tarball:${RESET} ${YELLOW}${TARBALL}${RESET}"
@@ -35,7 +35,10 @@ echo ""
 
 # ── Generate the Brewfile ─────────────────────────────────────────────────────
 echo -e "${CYAN}📦 Dumping Brewfile...${RESET}"
+mkdir -p "${WORK_DIR}/${BASE_NAME}"
 brew bundle dump --file="${WORK_DIR}/${BASE_NAME}/${BREWFILE}" --force
+# Wait for the file to be written to disk
+sync
 echo -e "${GREEN}✅ Brewfile written.${RESET}"
 echo ""
 
@@ -54,10 +57,8 @@ else
 fi
 
 # ── Detect MAS apps ───────────────────────────────────────────────────────────
-MAS_COUNT=0
-if command -v mas &>/dev/null; then
-  MAS_COUNT=$(grep -c '^mas ' "${WORK_DIR}/${BASE_NAME}/${BREWFILE}" 2>/dev/null || true)
-fi
+# Check if there are any MAS apps in the Brewfile regardless of whether mas is installed
+MAS_COUNT=$(grep -c '^mas ' "${WORK_DIR}/${BASE_NAME}/${BREWFILE}" 2>/dev/null || true)
 
 if [[ "$MAS_COUNT" -gt 0 ]]; then
   echo -e "${CYAN}🛍️  Mac App Store apps detected:${RESET} ${MAS_COUNT} app(s)"
@@ -66,10 +67,13 @@ if [[ "$MAS_COUNT" -gt 0 ]]; then
     echo -e "   ${YELLOW}→${RESET} ${app_name}"
   done
   echo ""
-elif ! command -v mas &>/dev/null; then
-  echo -e "${YELLOW}⚠️  mas not installed — App Store apps will not be captured.${RESET}"
-  echo -e "   ${CYAN}Tip: brew install mas${RESET} then re-run this script."
-  echo ""
+  # Ensure mas is installed so the generated install script can use it
+  if ! command -v mas &>/dev/null; then
+    echo -e "${CYAN}📦 Installing mas to support App Store restore...${RESET}"
+    brew install mas
+    echo -e "${GREEN}✅ mas installed.${RESET}"
+    echo ""
+  fi
 fi
 
 # ── Dotfile selection ─────────────────────────────────────────────────────────
@@ -109,7 +113,8 @@ else
           --preview='echo {}' \
           --preview-window=hidden \
           || true)
-    mapfile -t SELECTED_FILES <<< "$SELECTED_RAW"
+    # Use read -a to read into an array, which is more portable than mapfile
+    IFS=$'\n' read -r -d '' -a SELECTED_FILES <<< "$SELECTED_RAW" || true
     # Filter out empty lines (ESC / no selection)
     SELECTED_FILES=("${SELECTED_FILES[@]:-}")
     SELECTED_FILES=($(printf '%s\n' "${SELECTED_FILES[@]}" | grep -v '^$' || true))
@@ -205,7 +210,7 @@ cat >> "${INSTALL_SCRIPT_PATH}" << 'SCRIPT_BODY'
 
 echo ""
 echo -e "${BOLD}${BLUE}╔══════════════════════════════════════╗${RESET}"
-echo -e "${BOLD}${BLUE}║     🍺  Brew Environment Restore  🍺  ║${RESET}"
+echo -e "${BOLD}${BLUE}║   🍺  Brew Environment Restore  🍺   ║${RESET}"
 echo -e "${BOLD}${BLUE}╚══════════════════════════════════════╝${RESET}"
 echo ""
 
@@ -270,8 +275,8 @@ if [[ "$HAS_MAS_APPS" -gt 0 ]]; then
     rm -f "${BREWFILE_NO_MAS}"
     echo ""
     echo -e "${BOLD}${YELLOW}╔══════════════════════════════════════════════════╗${RESET}"
-    echo -e "${BOLD}${YELLOW}║  ⚠️  Partial restore — sign into App Store and  ║${RESET}"
-    echo -e "${BOLD}${YELLOW}║      re-run to install remaining MAS apps.       ║${RESET}"
+    echo -e "${BOLD}${YELLOW}║  ⚠️  Partial restore — sign into App Store and   ║${RESET}"
+    echo -e "${BOLD}${YELLOW}║        re-run to install remaining MAS apps.     ║${RESET}"
     echo -e "${BOLD}${YELLOW}╚══════════════════════════════════════════════════╝${RESET}"
     echo ""
     exit 0
@@ -373,7 +378,7 @@ tar -czf "${TARBALL}" -C "${WORK_DIR}" "${BASE_NAME}"
 echo -e "${GREEN}✅ Tarball created: ${TARBALL}${RESET}"
 echo ""
 echo -e "${BOLD}${GREEN}╔══════════════════════════════════════╗${RESET}"
-echo -e "${BOLD}${GREEN}║        ✅  Export complete!           ║${RESET}"
+echo -e "${BOLD}${GREEN}║         ✅  Export complete!         ║${RESET}"
 echo -e "${BOLD}${GREEN}╚══════════════════════════════════════╝${RESET}"
 echo ""
 echo -e "${CYAN}Transfer ${YELLOW}${TARBALL}${CYAN} to your new machine, then:${RESET}"
