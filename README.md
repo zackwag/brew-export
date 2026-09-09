@@ -32,21 +32,20 @@
 
 ---
 
+## Install
+
+```bash
+brew install zackwag/tap/brew-export
+```
+
 ## Usage
 
 ```bash
-# Clone the repo
-git clone https://github.com/zackwag/brew-export.git
-cd brew-export
-
-# Make executable
-chmod +x brew_export.sh
-
 # Run — defaults to your hostname as the output name
-./brew_export.sh
+brew-export
 
 # Or specify a custom name
-./brew_export.sh my-macbook-setup
+brew-export my-macbook-setup
 ```
 
 This produces a tarball in the current directory:
