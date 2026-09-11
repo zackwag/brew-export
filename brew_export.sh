@@ -21,6 +21,8 @@ INSTALL_SCRIPT="${BASE_NAME}_install.sh"
 TARBALL="${BASE_NAME}.tar.gz"
 WORK_DIR="$(mktemp -d)"
 DOTFILES_DIR="${WORK_DIR}/${BASE_NAME}/dotfiles"
+CONFIG_DIR="${HOME}/.config/brew-export"
+CONFIG_FILE="${CONFIG_DIR}/config.yml"
 
 cleanup() { rm -rf "${WORK_DIR}"; }
 trap cleanup EXIT
@@ -97,54 +99,108 @@ if [[ -d "$HOME/.ssh" ]]; then
   done < <(find "$HOME/.ssh" -maxdepth 1 -type f | sort)
 fi
 
+USE_SAVED=false
 if [[ ${#CANDIDATES[@]} -eq 0 ]]; then
   echo -e "${YELLOW}⚠️  No dotfiles found.${RESET}"
   SELECTED_FILES=()
 else
-  # ── fzf path ────────────────────────────────────────────────────────────────
-  if command -v fzf &>/dev/null; then
-    echo -e "${CYAN}📝 Select dotfiles to include${RESET} ${YELLOW}(TAB to multi-select, ENTER to confirm):${RESET}"
-    echo ""
-    SELECTED_RAW=$(printf '%s\n' "${CANDIDATES[@]}" | \
-      fzf --multi \
-          --prompt="  dotfiles > " \
-          --header="TAB = select/deselect  |  ENTER = confirm  |  ESC = skip all" \
-          --color="header:cyan,prompt:yellow,pointer:green" \
-          --preview='echo {}' \
-          --preview-window=hidden \
-          || true)
-    # Use read -a to read into an array, which is more portable than mapfile
-    IFS=$'\n' read -r -d '' -a SELECTED_FILES <<< "$SELECTED_RAW" || true
-    # Filter out empty lines (ESC / no selection)
-    SELECTED_FILES=("${SELECTED_FILES[@]:-}")
-    SELECTED_FILES=($(printf '%s\n' "${SELECTED_FILES[@]}" | grep -v '^$' || true))
+  # ── Check for saved preferences ──────────────────────────────────────────────
+  if [[ -f "$CONFIG_FILE" ]]; then
+    SAVED_FILES=()
+    STALE_FILES=()
+    while IFS= read -r line; do
+      [[ -z "$line" || "$line" == "dotfiles:" || "$line" =~ ^# ]] && continue
+      path="${line#  - }"
+      path="${path#- }"
+      if [[ -f "$path" ]]; then
+        SAVED_FILES+=("$path")
+      else
+        STALE_FILES+=("$path")
+      fi
+    done < "$CONFIG_FILE"
 
-  # ── Numbered checklist fallback ──────────────────────────────────────────────
-  else
-    echo -e "${YELLOW}⚠️  fzf not found — using numbered checklist.${RESET}"
-    echo -e "${CYAN}   Install fzf for a better experience: brew install fzf${RESET}"
-    echo ""
-    echo -e "${CYAN}📝 Available dotfiles:${RESET}"
-    for i in "${!CANDIDATES[@]}"; do
-      printf "   ${YELLOW}%3d)${RESET} %s\n" "$((i+1))" "${CANDIDATES[$i]}"
-    done
-    echo ""
-    echo -e "${CYAN}Enter numbers to include (e.g. 1 3 5), or ENTER to skip:${RESET}"
-    read -r -p "  > " SELECTION
-
-    SELECTED_FILES=()
-    if [[ -n "$SELECTION" ]]; then
-      for num in $SELECTION; do
-        idx=$((num - 1))
-        if [[ $idx -ge 0 && $idx -lt ${#CANDIDATES[@]} ]]; then
-          SELECTED_FILES+=("${CANDIDATES[$idx]}")
-        else
-          echo -e "${RED}  ⚠️  Invalid selection: ${num} — skipped.${RESET}"
-        fi
+    if [[ ${#SAVED_FILES[@]} -gt 0 ]]; then
+      PREVIEW_COUNT=3
+      PREVIEW=()
+      for i in "${!SAVED_FILES[@]}"; do
+        [[ $i -ge $PREVIEW_COUNT ]] && break
+        PREVIEW+=("${SAVED_FILES[$i]#$HOME/}")
       done
+      PREVIEW_STR=$(printf '%s, ' "${PREVIEW[@]}")
+      PREVIEW_STR="${PREVIEW_STR%, }"
+      REMAINING=$(( ${#SAVED_FILES[@]} - PREVIEW_COUNT ))
+
+      echo -e "${CYAN}📋 Found saved preferences${RESET} ${YELLOW}(${CONFIG_FILE})${RESET}"
+      if [[ $REMAINING -gt 0 ]]; then
+        echo -e "   ${#SAVED_FILES[@]} dotfiles selected (e.g. ${PREVIEW_STR}, ...)"
+      else
+        echo -e "   ${#SAVED_FILES[@]} dotfile(s) selected (${PREVIEW_STR})"
+      fi
+      if [[ ${#STALE_FILES[@]} -gt 0 ]]; then
+        echo -e "   ${YELLOW}⚠️  ${#STALE_FILES[@]} saved path(s) no longer exist and will be skipped.${RESET}"
+      fi
+      echo ""
+      read -r -p "   Use saved preferences? [Y/n] " USE_SAVED_CHOICE </dev/tty
+      echo ""
+
+      case "${USE_SAVED_CHOICE,,}" in
+        n|no)
+          USE_SAVED=false
+          ;;
+        *)
+          USE_SAVED=true
+          SELECTED_FILES=("${SAVED_FILES[@]}")
+          ;;
+      esac
+    fi
+  fi
+
+  # ── Interactive selection (no saved prefs or user declined) ────────────────
+  if [[ "$USE_SAVED" == false ]]; then
+    # ── fzf path ──────────────────────────────────────────────────────────────
+    if command -v fzf &>/dev/null; then
+      echo -e "${CYAN}📝 Select dotfiles to include${RESET} ${YELLOW}(TAB to multi-select, ENTER to confirm):${RESET}"
+      echo ""
+      SELECTED_RAW=$(printf '%s\n' "${CANDIDATES[@]}" | \
+        fzf --multi \
+            --prompt="  dotfiles > " \
+            --header="TAB = select/deselect  |  ENTER = confirm  |  ESC = skip all" \
+            --color="header:cyan,prompt:yellow,pointer:green" \
+            --preview='echo {}' \
+            --preview-window=hidden \
+            || true)
+      IFS=$'\n' read -r -d '' -a SELECTED_FILES <<< "$SELECTED_RAW" || true
+      SELECTED_FILES=("${SELECTED_FILES[@]:-}")
+      SELECTED_FILES=($(printf '%s\n' "${SELECTED_FILES[@]}" | grep -v '^$' || true))
+
+    # ── Numbered checklist fallback ────────────────────────────────────────────
+    else
+      echo -e "${YELLOW}⚠️  fzf not found — using numbered checklist.${RESET}"
+      echo -e "${CYAN}   Install fzf for a better experience: brew install fzf${RESET}"
+      echo ""
+      echo -e "${CYAN}📝 Available dotfiles:${RESET}"
+      for i in "${!CANDIDATES[@]}"; do
+        printf "   ${YELLOW}%3d)${RESET} %s\n" "$((i+1))" "${CANDIDATES[$i]}"
+      done
+      echo ""
+      echo -e "${CYAN}Enter numbers to include (e.g. 1 3 5), or ENTER to skip:${RESET}"
+      read -r -p "  > " SELECTION
+
+      SELECTED_FILES=()
+      if [[ -n "$SELECTION" ]]; then
+        for num in $SELECTION; do
+          idx=$((num - 1))
+          if [[ $idx -ge 0 && $idx -lt ${#CANDIDATES[@]} ]]; then
+            SELECTED_FILES+=("${CANDIDATES[$idx]}")
+          else
+            echo -e "${RED}  ⚠️  Invalid selection: ${num} — skipped.${RESET}"
+          fi
+        done
+      fi
     fi
   fi
 fi
+
 
 # ── Copy selected dotfiles into work dir ──────────────────────────────────────
 mkdir -p "${DOTFILES_DIR}"
@@ -167,6 +223,50 @@ if [[ ${#SELECTED_FILES[@]} -gt 0 ]]; then
 else
   echo -e "${YELLOW}   No dotfiles selected — skipping.${RESET}"
   echo ""
+fi
+
+# ── Offer to save preferences ────────────────────────────────────────────────
+if [[ ${#SELECTED_FILES[@]} -gt 0 && "$USE_SAVED" == false ]]; then
+  echo -e "${CYAN}💾 Save these dotfile selections for next time?${RESET}"
+  read -r -p "   Save preferences? [y/N] " SAVE_CHOICE </dev/tty
+  echo ""
+
+  case "${SAVE_CHOICE,,}" in
+    y|yes)
+      mkdir -p "${CONFIG_DIR}"
+      {
+        echo "# brew-export saved preferences"
+        echo "# Edit or delete this file to change selections"
+        echo "dotfiles:"
+        for f in "${SELECTED_FILES[@]}"; do
+          [[ -z "$f" ]] && continue
+          echo "  - ${f}"
+        done
+      } > "${CONFIG_FILE}"
+      echo -e "${GREEN}   ✅ Preferences saved to ${CONFIG_FILE}${RESET}"
+      echo ""
+      ;;
+    *)
+      echo -e "${YELLOW}   Preferences not saved.${RESET}"
+      echo ""
+      ;;
+  esac
+elif [[ ${#SELECTED_FILES[@]} -gt 0 && "$USE_SAVED" == true ]]; then
+  # Update config to remove stale entries
+  if [[ ${#STALE_FILES[@]} -gt 0 ]]; then
+    mkdir -p "${CONFIG_DIR}"
+    {
+      echo "# brew-export saved preferences"
+      echo "# Edit or delete this file to change selections"
+      echo "dotfiles:"
+      for f in "${SELECTED_FILES[@]}"; do
+        [[ -z "$f" ]] && continue
+        echo "  - ${f}"
+      done
+    } > "${CONFIG_FILE}"
+    echo -e "${YELLOW}   Updated saved preferences (removed ${#STALE_FILES[@]} stale path(s)).${RESET}"
+    echo ""
+  fi
 fi
 
 # ── Build the install script ──────────────────────────────────────────────────
@@ -372,6 +472,11 @@ chmod +x "${INSTALL_SCRIPT_PATH}"
 echo -e "${GREEN}✅ Install script written.${RESET}"
 echo ""
 echo -e "${CYAN}🗜️  Creating tarball...${RESET}"
+
+# Include saved preferences in tarball if they exist
+if [[ -f "$CONFIG_FILE" ]]; then
+  cp "${CONFIG_FILE}" "${WORK_DIR}/${BASE_NAME}/config.yml"
+fi
 
 tar -czf "${TARBALL}" -C "${WORK_DIR}" "${BASE_NAME}"
 
