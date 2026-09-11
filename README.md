@@ -13,6 +13,7 @@
 - 🛍️ Detects Mac App Store apps (via [`mas`](https://github.com/mas-cli/mas)) and handles sign-in gracefully on restore
 - 🗂️ Scans `~` and `~/.ssh` for dotfiles and lets you select which ones to include
 - ✨ Interactive multi-select via `fzf` (falls back to a numbered checklist if `fzf` isn't installed)
+- 💾 Optionally saves your dotfile selections to `~/.config/brew-export/config.yml` — skip the picker on repeat runs
 - 🗜️ Packages everything into a single `<name>.tar.gz` tarball — Brewfile, install script, and dotfiles together
 - 🔒 Security warnings when SSH keys or sensitive files are included
 - 🎨 Colorized, emoji-annotated output throughout
@@ -62,6 +63,7 @@ my-macbook-setup.tar.gz
 my-macbook-setup/
 ├── my-macbook-setup.Brewfile       # brew bundle dump output
 ├── my-macbook-setup_install.sh     # self-contained restore script
+├── config.yml                      # saved dotfile preferences (if saved)
 └── dotfiles/                       # any dotfiles you selected
     ├── .zshrc
     ├── .gitconfig
@@ -111,6 +113,24 @@ Choosing **backup** saves the existing file as `.zshrc.bak.YYYYMMDDHHMMSS` befor
 If your Brewfile contains App Store apps, `brew_export.sh` will automatically install [`mas`](https://github.com/mas-cli/mas) via Homebrew if it isn't already present — no manual setup required.
 
 If the target machine isn't signed into the App Store when the install script runs, it will install all non-MAS packages first, then exit with clear instructions to sign in and re-run.
+
+---
+
+## Saved preferences
+
+After selecting dotfiles, the script offers to save your choices to `~/.config/brew-export/config.yml`. On the next run, you'll see a summary and can accept or re-pick:
+
+```
+📋 Found saved preferences (~/.config/brew-export/config.yml)
+   5 dotfiles selected (e.g. .zshrc, .gitconfig, .ssh/config, ...)
+   Use saved preferences? [Y/n]
+```
+
+- Press **Enter** or **Y** to reuse your saved selections
+- Press **n** to drop into the normal picker
+- Dotfiles that no longer exist are detected and automatically pruned
+
+To reset, delete the config file: `rm ~/.config/brew-export/config.yml`
 
 ---
 
