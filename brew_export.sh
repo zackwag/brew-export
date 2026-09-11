@@ -143,7 +143,7 @@ else
       read -r -p "   Use saved preferences? [Y/n] " USE_SAVED_CHOICE </dev/tty
       echo ""
 
-      case "${USE_SAVED_CHOICE,,}" in
+      case "$(echo "$USE_SAVED_CHOICE" | tr '[:upper:]' '[:lower:]')" in
         n|no)
           USE_SAVED=false
           ;;
@@ -231,7 +231,7 @@ if [[ ${#SELECTED_FILES[@]} -gt 0 && "$USE_SAVED" == false ]]; then
   read -r -p "   Save preferences? [y/N] " SAVE_CHOICE </dev/tty
   echo ""
 
-  case "${SAVE_CHOICE,,}" in
+  case "$(echo "$SAVE_CHOICE" | tr '[:upper:]' '[:lower:]')" in
     y|yes)
       mkdir -p "${CONFIG_DIR}"
       {
@@ -428,7 +428,7 @@ else
       echo -e "   ${CYAN}[o]${RESET} Overwrite   ${CYAN}[s]${RESET} Skip   ${CYAN}[b]${RESET} Backup and overwrite"
       read -r -p "   > " CHOICE </dev/tty
 
-      case "${CHOICE,,}" in
+      case "$(echo "$CHOICE" | tr '[:upper:]' '[:lower:]')" in
         o)
           cp "$SRC" "$DEST"
           RESTORED+=("$rel")
