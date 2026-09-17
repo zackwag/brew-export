@@ -21,26 +21,43 @@ jobs:
           SHA=$(curl -sL "https://github.com/${{ github.repository }}/archive/refs/tags/${{ steps.release.outputs.tag }}.tar.gz" | sha256sum | awk '{print $1}')
           echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
 
-      - name: Update formula in tap
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          script: |
-            const owner = 'zackwag';
-            const repo = 'homebrew-tap';
-            const path = 'Formula/brew-export.rb';
+      - name: Update formula via PR
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+          TAG: ${{ steps.release.outputs.tag }}
+          SHA256: ${{ steps.sha.outputs.sha256 }}
+        run: |
+          branch="update-brew-export-${TAG}"
 
-            const { data: file } = await github.rest.repos.getContent({ owner, repo, path });
-            let content = Buffer.from(file.content, 'base64').toString('utf8');
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/zackwag/homebrew-tap.git" tap
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
 
-            content = content.replace(/version ".*"/, `version "${{ steps.release.outputs.version }}"`);
-            content = content.replace(/sha256 ".*"/, `sha256 "${{ steps.sha.outputs.sha256 }}"`);
+          sed -i -E "s/version \".*\"/version \"${VERSION}\"/" Formula/brew-export.rb
+          sed -i -E "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Formula/brew-export.rb
 
-            await github.rest.repos.createOrUpdateFileContents({
-              owner,
-              repo,
-              path,
-              message: `Update brew-export to ${{ steps.release.outputs.tag }}`,
-              content: Buffer.from(content).toString('base64'),
-              sha: file.sha,
-            });
+          git add Formula/brew-export.rb
+          git commit -m "chore(brew-export): update to ${TAG}"
+          git push origin "$branch"
+
+          gh pr create --repo zackwag/homebrew-tap --base main --head "$branch" \
+            --title "chore(brew-export): update to ${TAG}" \
+            --body "Automated update from a brew-export release."
+
+          pr_number=$(gh pr list --repo zackwag/homebrew-tap --head "$branch" --json number -q '.[0].number')
+          for i in $(seq 1 40); do
+            pending=$(gh pr view "$pr_number" --repo zackwag/homebrew-tap --json statusCheckRollup -q '[.statusCheckRollup[] | select(.status!="COMPLETED")] | length')
+            if [ "$pending" = "0" ]; then break; fi
+            sleep 15
+          done
+
+          bad=$(gh pr view "$pr_number" --repo zackwag/homebrew-tap --json statusCheckRollup -q '[.statusCheckRollup[] | select((.conclusion // "") | IN("SUCCESS","NEUTRAL","SKIPPED") | not)] | length')
+          if [ "$bad" != "0" ]; then
+            echo "::error::$bad check(s) did not succeed; leaving PR #$pr_number open for review."
+            exit 1
+          fi
+
+          gh pr merge "$pr_number" --repo zackwag/homebrew-tap --squash --delete-branch
