@@ -65,7 +65,8 @@ MAS_COUNT=$(grep -c '^mas ' "${WORK_DIR}/${BASE_NAME}/${BREWFILE}" 2>/dev/null |
 if [[ "$MAS_COUNT" -gt 0 ]]; then
   echo -e "${CYAN}🛍️  Mac App Store apps detected:${RESET} ${MAS_COUNT} app(s)"
   grep '^mas ' "${WORK_DIR}/${BASE_NAME}/${BREWFILE}" | while IFS= read -r line; do
-    app_name=$(echo "$line" | sed 's/^mas "\(.*\)", id:.*/\1/')
+    # shellcheck disable=SC2001 # capture-group extraction; not expressible as a bash pattern substitution
+    app_name=$(sed 's/^mas "\(.*\)", id:.*/\1/' <<< "$line")
     echo -e "   ${YELLOW}→${RESET} ${app_name}"
   done
   echo ""
@@ -171,7 +172,7 @@ else
             || true)
       IFS=$'\n' read -r -d '' -a SELECTED_FILES <<< "$SELECTED_RAW" || true
       SELECTED_FILES=("${SELECTED_FILES[@]:-}")
-      SELECTED_FILES=($(printf '%s\n' "${SELECTED_FILES[@]}" | grep -v '^$' || true))
+      mapfile -t SELECTED_FILES < <(printf '%s\n' "${SELECTED_FILES[@]}" | grep -v '^$' || true)
 
     # ── Numbered checklist fallback ────────────────────────────────────────────
     else
@@ -212,7 +213,7 @@ if [[ ${#SELECTED_FILES[@]} -gt 0 ]]; then
   for f in "${SELECTED_FILES[@]}"; do
     [[ -z "$f" ]] && continue
     # Preserve relative path from HOME (e.g. .ssh/id_rsa → dotfiles/.ssh/id_rsa)
-    REL="${f#$HOME/}"
+    REL="${f#"$HOME"/}"
     DEST="${DOTFILES_DIR}/${REL}"
     mkdir -p "$(dirname "$DEST")"
     cp "$f" "$DEST"
@@ -335,6 +336,7 @@ SCRIPT_BODY
 
 # Inject tap commands
 if [[ -z "$CUSTOM_TAPS" ]]; then
+  # shellcheck disable=SC2016 # literal line written into the generated install script, not expanded here
   echo 'echo -e "${YELLOW}   No custom taps to add.${RESET}"' >> "${INSTALL_SCRIPT_PATH}"
 else
   while IFS= read -r tap; do

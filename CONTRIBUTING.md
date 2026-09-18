@@ -17,6 +17,8 @@ Requires macOS and [Homebrew](https://brew.sh). `fzf` is recommended for the int
 
 This is a single Bash script (`brew_export.sh`). There's no build step — edit the script directly and run it to test your changes. The Homebrew formula (`homebrew-tap/Formula/brew-export.rb`) just installs this script as `brew-export`; its formula test only checks the binary is executable.
 
+Run [ShellCheck](https://www.shellcheck.net/) locally before opening a PR (`shellcheck brew_export.sh`, `brew install shellcheck` if you don't have it) — CI runs the same check and must pass.
+
 ## Commit messages and pull requests
 
 This repo uses [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `chore:`, etc.). Pull requests are squash-merged, and the **PR title** becomes the commit on `main` — so PR titles must follow this format. This is enforced automatically by the "Conventional Commits" check.

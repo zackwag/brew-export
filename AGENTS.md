@@ -28,5 +28,6 @@ No automated test suite. The Homebrew formula in `homebrew-tap/Formula/brew-expo
 - Commit messages and PR titles must follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`, `ci:`, `build:`, `perf:`, `style:`, `revert:`), optionally with a scope, e.g. `fix(api): handle null response`.
 - This repo squash-merges pull requests only; the PR title becomes the final commit message on `main`.
 - A "Conventional Commits" CI check enforces this on both PR titles and direct-push commit messages.
+- A "ShellCheck" CI check lints `brew_export.sh` on every PR and push to `main`. Fix reported issues rather than disabling them where possible; use a targeted `# shellcheck disable=SCxxxx` comment with a reason when a warning is a false positive.
 - Branch protection on `main`: no force-pushes, no branch deletion, required status checks must pass.
 - **Known issue (affects `homebrew-tap`, not this repo directly):** `update-tap.yml` pushes a commit to `homebrew-tap`'s `main` on every release, with message `Update brew-export to vX.Y.Z` — not Conventional-Commits-formatted, and a direct push rather than a PR. Since `homebrew-tap` now also requires the "Conventional Commits" check, this release automation will likely fail on the next release. Needs a fix — not addressed by this change.
