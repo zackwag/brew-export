@@ -36,8 +36,17 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"
 
-          sed -i -E "s/version \".*\"/version \"${VERSION}\"/" Formula/brew-export.rb
+          # The formula has no separate `version` field (brew style flags it as
+          # redundant when it's inferable from the url), so the version lives only
+          # in the url's tag segment - rewrite that directly rather than a
+          # `version "..."` line, which doesn't exist and would silently no-op.
+          sed -i -E "s#(archive/refs/tags/v)[0-9]+\.[0-9]+\.[0-9]+(\.tar\.gz)#\1${VERSION}\2#" Formula/brew-export.rb
           sed -i -E "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Formula/brew-export.rb
+
+          grep -q "v${VERSION}.tar.gz" Formula/brew-export.rb || {
+            echo "::error::url in Formula/brew-export.rb was not updated to v${VERSION}"
+            exit 1
+          }
 
           git add Formula/brew-export.rb
           git commit -m "chore(brew-export): update to ${TAG}"
